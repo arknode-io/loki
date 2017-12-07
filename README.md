@@ -1,2 +1,2 @@
 # loki
-High performance data mart using event plots
+High performance data mart using event plots for Erlang/Elixir applications
