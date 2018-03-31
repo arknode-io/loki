@@ -14,6 +14,8 @@
 -export([init/1]).
 
 -define(SERVER, ?MODULE).
+-define(CHILD(ID), #{id => ID, start => {ID, start_link, []}}).
+% -define(CHILD_SUP(ID), #{id=>ID, start => {ID, start_link, []}, type => supervisor}).
 
 %%====================================================================
 %% API functions
@@ -28,7 +30,13 @@ start_link() ->
 
 %% Child :: {Id,StartFunc,Restart,Shutdown,Type,Modules}
 init([]) ->
-    {ok, { {one_for_all, 0, 1}, []} }.
+  SupervisorFlags = #{strategy => one_for_one,
+                      intensity => 25,
+                      period => 60},
+  ChildSpecs = [?CHILD(loki_mnesia)],
+  lager:debug("Child specs are ~p and Supervisor flags are ~p",
+              [ChildSpecs, SupervisorFlags]),
+  {ok, {SupervisorFlags, ChildSpecs}}.
 
 %%====================================================================
 %% Internal functions

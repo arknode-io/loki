@@ -1,16 +1,17 @@
 {application, loki,
- [{description, "An OTP application"},
-  {vsn, "0.1.0"},
+ [{description, "High performance data mart using event plots"},
+  {vsn, "1.0"},
   {registered, []},
   {mod, { loki_app, []}},
   {applications,
    [kernel,
-    stdlib
+    stdlib,
+    mnesia,
+    lager
    ]},
   {env,[]},
   {modules, []},
 
-  {maintainers, []},
-  {licenses, ["Apache 2.0"]},
+  {maintainers, ["Chaitanya Chalasani"]},
   {links, []}
  ]}.
