@@ -1,20 +1,17 @@
 %%%-------------------------------------------------------------------
 %%% @author danny
-%%% @copyright (C) 2017, danny
+%%% @copyright (C) 2019, danny
 %%% @doc
 %%%
 %%% @end
-%%% Created : 2017-12-07 16:49:37.506082
+%%% Created : 2019-04-13 21:24:22.860650
 %%%-------------------------------------------------------------------
--module(loki_mnesia).
+-module(loki_tivan).
 
 -behaviour(gen_server).
 
--include("loki.hrl").
-
 %% API
--export([start_link/0,
-         ensure_table/1]).
+-export([start_link/0]).
 
 %% gen_server callbacks
 -export([init/1,
@@ -38,9 +35,6 @@
 start_link() ->
   gen_server:start_link({local, ?MODULE}, ?MODULE, [], []).
 
-ensure_table(FragNo) ->
-  gen_server:call(?MODULE, {ensure_table, FragNo}).
-
 %%%===================================================================
 %%% gen_server callbacks
 %%%===================================================================
@@ -57,7 +51,6 @@ ensure_table(FragNo) ->
 %% @end
 %%--------------------------------------------------------------------
 init([]) ->
-  init_tables(),
   {ok, #{}}.
 
 %%--------------------------------------------------------------------
@@ -74,9 +67,6 @@ init([]) ->
 %%                                   {stop, Reason, State}
 %% @end
 %%--------------------------------------------------------------------
-handle_call({ensure_table, FragNo}, _From, State) ->
-  Reply = handle_ensure_table(FragNo),
-  {reply, Reply, State};
 handle_call(_Request, _From, State) ->
   Reply = ok,
   {reply, Reply, State}.
@@ -136,35 +126,6 @@ code_change(_OldVsn, State, _Extra) ->
 %%% Internal functions
 %%%===================================================================
 
-init_tables() ->
-  StorageType = mnesia:table_info(schema, storage_type),
-  mnesia:create_table(loki_counter, [{attributes, record_info(fields, loki_counter)},
-                                     {StorageType, [node()]}]),
-  mnesia:create_table(loki_event, [{attributes, record_info(fields, loki_event)},
-                                   {StorageType, [node()]},
-                                   {index, [event]}]).
 
-handle_ensure_table(FragNo) ->
-  Tname = list_to_atom("loki_" ++ integer_to_list(FragNo)),
-  case does_table_exist(Tname) of
-    true ->
-      {ok, Tname};
-    false ->
-      create_table(Tname)
-  end.
 
-does_table_exist(Tname) ->
-  lists:member(Tname, mnesia:system_info(local_tables)).
 
-create_table(Tname) ->
-  StorageType = mnesia:table_info(schema, storage_type),
-  case mnesia:create_table(Tname, [{attributes, record_info(fields, loki)},
-                                   {StorageType, [node()]},
-                                   {record_name, loki}]) of
-    {atomic, ok} ->
-      {ok, Tname};
-    {aborted,{already_exists,Tname}} ->
-      {ok, Tname};
-    Error ->
-      Error
-  end.

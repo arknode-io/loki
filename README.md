@@ -1,2 +1,9 @@
-# loki
-High performance data mart using event plots for Erlang/Elixir applications
+loki
+=====
+
+An OTP application
+
+Build
+-----
+
+    $ rebar3 compile

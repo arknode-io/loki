@@ -2,7 +2,11 @@
 [{<<"goldrush">>,{pkg,<<"goldrush">>,<<"0.1.9">>},1},
  {<<"lager">>,
   {git,"https://github.com/erlang-lager/lager.git",
-       {ref,"6cc6b125ad55835748cd847f03314698ae439aea"}},
+       {ref,"bf60290101306b3cc26544d0d181a5cff8931e82"}},
+  0},
+ {<<"tivan">>,
+  {git,"git@github.com:arknode-io/tivan.git",
+       {ref,"92872483747be5af9f087c7b882bfe58bbda81df"}},
   0}]}.
 [
 {pkg_hash,[
