@@ -9,7 +9,7 @@ Build
     $ rebar3 compile
 
 Frag
-{Uuid, Slot} -> <<Mark:16, Event:16, Size:8, Type:8, Data:Custom>>
+{Uuid, Slot} -> <<Mark:16, Event:16, Size:16, Data:Custom>>
                 <<30:16, 4:16, 0:16>>
                 <<30:16, 10:16, 3:8, 2:8, "123"/binary>>
 

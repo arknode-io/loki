@@ -17,7 +17,8 @@
 %% API
 -export([start_link/0
         ,put/1
-        ,get/1]).
+        ,get/1
+        ,apply/1]).
 
 %% gen_server callbacks
 -export([init/1
@@ -52,7 +53,11 @@ put(EventMap) ->
   error.
 
 get(#{entity := _Entity} = Request) ->
-  do_get(Request).
+  GetFunction = fun({S, E}, A) -> A#{S => E} end,
+  apply(Request#{function => GetFunction, init => #{}}).
+
+apply(#{entity := _Entity, function := Function} = Request) when is_function(Function, 2) ->
+  do_apply(Request).
 
 %%%===================================================================
 %%% gen_server callbacks
@@ -166,11 +171,11 @@ do_put(#{entity := Entity, event := Event, time := TimeInSeconds} = EventMap
                   <<Mark:16, EventId:16, 0:16>>;
                 Data ->
                   {DataU, Size} = case size(Data) of
-                                    S when S > 255 -> {binary_part(Data, 0, 255), 255};
+                                    S when S > 1023 -> {binary_part(Data, 0, 1023), 1023};
                                     S -> {Data, S}
                                   end,
-                  Type = maps:get(type, EventMap, 0),
-                  <<Mark:16, EventId:16, Size:8, Type:8, DataU>>
+                  lager:info("Putting ~p", [{Mark, EventId, Size, DataU}]),
+                  <<Mark:16, EventId:16, Size:16, DataU/binary>>
               end,
   Table = frag_table(FragPrefix, FragNo),
   loki_tivan:ensure_loki_frag(Table),
@@ -178,7 +183,8 @@ do_put(#{entity := Entity, event := Event, time := TimeInSeconds} = EventMap
   lager:info("EventsData is ~p", [{EventsData, EventData}]),
   loki_tivan:put(Table, {Entity, SlotNo}, <<EventsData/binary, EventData/binary>>).
 
-do_get(#{entity := Entity} = Request) ->
+do_apply(#{entity := Entity, function := Function} = Request) ->
+  InitialValue = maps:get(init, Request, #{}),
   FragPrefix = application:get_env(loki, frag_prefix, ?FRAG_PREFIX),
   FragSize = application:get_env(loki, frag_size, ?FRAG_SIZE),
   SlotSize = application:get_env(loki, slot_size, ?SLOT_SIZE),
@@ -197,52 +203,53 @@ do_get(#{entity := Entity} = Request) ->
              end,
   EventsReq = maps:get(events, Request, []),
   lists:foldl(
-    fun(FragNo, EventsMap) ->
+    fun(FragNo, EventsAcc) ->
         Table = frag_table(FragPrefix, FragNo),
         lists:foldl(
-          fun(#{entity_slot := {_, SlotNo}, data := Data}, EventsMapA) ->
+          fun(#{entity_slot := {_, SlotNo}, data := Data}, EventsAccInner) ->
               SlotSeconds = SlotSize * SlotNo,
-              parse_event_data(Data, SlotSeconds, EventsReq, EventsMapA)
+              parse_event_data(Data, SlotSeconds, EventsReq, Function, EventsAccInner)
           end,
-          EventsMap,
+          EventsAcc,
           loki_tivan:get(Table, Entity)
          )
     end,
-    #{},
+    InitialValue,
     lists:seq(FromFrag, ToFrag)
    ).
 
 parse_event_data(<<Mark:16, EventId:16, 0:16, Rest/binary>> = Data
-                 ,SlotSeconds, EventsReq, EventsMap) ->
+                 ,SlotSeconds, EventsReq, Function, EventsAcc) ->
   lager:info("Parsing ~p from ~p and fitering from ~p adding to ~p"
-             ,[Data, SlotSeconds, EventsReq, EventsMap]),
+             ,[Data, SlotSeconds, EventsReq, EventsAcc]),
   case get_required_event_for_id(EventId, EventsReq) of
     error ->
       lager:info("Event for ~p missing so ignoring", [EventId]),
-      parse_event_data(Rest, SlotSeconds, EventsReq, EventsMap);
+      parse_event_data(Rest, SlotSeconds, EventsReq, Function, EventsAcc);
     not_requested ->
       lager:info("Event for ~p not requested so ignoring", [EventId]),
-      parse_event_data(Rest, SlotSeconds, EventsReq, EventsMap);
+      parse_event_data(Rest, SlotSeconds, EventsReq, Function, EventsAcc);
     {ok, Event} ->
-      TimeInSeconds = SlotSeconds + Mark,
-      EventsMap#{TimeInSeconds => #{event => Event}}
+      EventsAccU = apply(Function, [{SlotSeconds + Mark, #{event => Event}}, EventsAcc]),
+      parse_event_data(Rest, SlotSeconds, EventsReq, Function, EventsAccU)
   end;
-parse_event_data(<<Mark:16, EventId:16, Size:8, Type:8, EData:Size/binary, Rest/binary>> = Data
-                 ,SlotSeconds, EventsReq, EventsMap) ->
+parse_event_data(<<Mark:16, EventId:16, Size:16, EData:Size/binary, Rest/binary>> = Data
+                 ,SlotSeconds, EventsReq, Function, EventsAcc) ->
   lager:info("Parsing ~p from ~p and fitering from ~p adding to ~p"
-             ,[Data, SlotSeconds, EventsReq, EventsMap]),
+             ,[Data, SlotSeconds, EventsReq, EventsAcc]),
   case get_required_event_for_id(EventId, EventsReq) of
     error ->
       lager:info("Event for ~p missing so ignoring", [EventId]),
-      parse_event_data(Rest, SlotSeconds, EventsReq, EventsMap);
+      parse_event_data(Rest, SlotSeconds, EventsReq, Function, EventsAcc);
     not_requested ->
       lager:info("Event for ~p not requested so ignoring", [EventId]),
-      parse_event_data(Rest, SlotSeconds, EventsReq, EventsMap);
+      parse_event_data(Rest, SlotSeconds, EventsReq, Function, EventsAcc);
     {ok, Event} ->
-      TimeInSeconds = SlotSeconds + Mark,
-      EventsMap#{TimeInSeconds => #{event => Event, type => Type, data => EData}}
+      EventsAccU = apply(Function, [{SlotSeconds + Mark, #{event => Event
+                                                          ,data => EData}}, EventsAcc]),
+      parse_event_data(Rest, SlotSeconds, EventsReq, Function, EventsAccU)
   end;
-parse_event_data(<<>>, _SlotSeconds, _EventsReq, EventsMap) -> EventsMap.
+parse_event_data(<<>>, _SlotSeconds, _EventsReq, _Function, EventsAcc) -> EventsAcc.
 
 get_required_event_for_id(EventId, EventsReq) ->
   case loki_tivan:get_event_for_id(EventId) of
