@@ -1,4 +1,4 @@
-.PHONY: default all build clean compile release shell
+.PHONY: default all build clean compile release shell upgrade
 
 rebar='rebar3'
 
@@ -14,3 +14,5 @@ test:
 	@$(rebar) do ct
 shell:
 	@$(rebar) shell
+upgrade:
+	@$(rebar) upgrade

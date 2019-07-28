@@ -1,15 +1,16 @@
 {application, loki,
- [{description, "An OTP application"},
+ [{description, "EventPlots based reporting engine"},
   {vsn, "0.1.0"},
   {registered, []},
   {mod, {loki_app, []}},
   {applications,
    [kernel,
-    stdlib
+    stdlib,
+    tivan,
+    lager
    ]},
   {env,[]},
   {modules, []},
-
   {maintainers, []},
   {licenses, ["Apache 2.0"]},
   {links, []}

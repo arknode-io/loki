@@ -31,7 +31,8 @@ start_link() ->
 %% Before OTP 18 tuples must be used to specify a child. e.g.
 %% Child :: {Id,StartFunc,Restart,Shutdown,Type,Modules}
 init([]) ->
-    {ok, {{one_for_all, 0, 1}, []}}.
+    {ok, {{one_for_all, 0, 1}, [#{id => loki_tivan, start => {loki_tivan, start_link, []}}
+                               ,#{id => loki_core, start => {loki_core, start_link, []}}]}}.
 
 %%====================================================================
 %% Internal functions
