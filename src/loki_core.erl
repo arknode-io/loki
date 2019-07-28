@@ -222,7 +222,7 @@ parse_event_data(<<Mark:16, EventId:16, 0:16, Rest/binary>> = Data
                  ,SlotSeconds, EventsReq, Function, EventsAcc) ->
   lager:info("Parsing ~p from ~p and fitering from ~p adding to ~p"
              ,[Data, SlotSeconds, EventsReq, EventsAcc]),
-  case get_required_event_for_id(EventId, EventsReq) of
+  case get_requested_event_for_id(EventId, EventsReq) of
     error ->
       lager:info("Event for ~p missing so ignoring", [EventId]),
       parse_event_data(Rest, SlotSeconds, EventsReq, Function, EventsAcc);
@@ -237,7 +237,7 @@ parse_event_data(<<Mark:16, EventId:16, Size:16, EData:Size/binary, Rest/binary>
                  ,SlotSeconds, EventsReq, Function, EventsAcc) ->
   lager:info("Parsing ~p from ~p and fitering from ~p adding to ~p"
              ,[Data, SlotSeconds, EventsReq, EventsAcc]),
-  case get_required_event_for_id(EventId, EventsReq) of
+  case get_requested_event_for_id(EventId, EventsReq) of
     error ->
       lager:info("Event for ~p missing so ignoring", [EventId]),
       parse_event_data(Rest, SlotSeconds, EventsReq, Function, EventsAcc);
@@ -251,7 +251,7 @@ parse_event_data(<<Mark:16, EventId:16, Size:16, EData:Size/binary, Rest/binary>
   end;
 parse_event_data(<<>>, _SlotSeconds, _EventsReq, _Function, EventsAcc) -> EventsAcc.
 
-get_required_event_for_id(EventId, EventsReq) ->
+get_requested_event_for_id(EventId, EventsReq) ->
   case loki_tivan:get_event_for_id(EventId) of
     error ->
       error;
