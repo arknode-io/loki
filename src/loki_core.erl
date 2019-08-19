@@ -184,7 +184,7 @@ do_put(#{entity := Entity, event := Event, time := TimeInSeconds} = EventMap
   loki_tivan:put(Table, {Entity, SlotNo}, <<EventsData/binary, EventData/binary>>).
 
 do_apply(#{entity := Entity, function := Function} = Request) ->
-  InitialValue = maps:get(init, Request, #{}),
+  InitValue = maps:get(init, Request, #{}),
   FragPrefix = application:get_env(loki, frag_prefix, ?FRAG_PREFIX),
   FragSize = application:get_env(loki, frag_size, ?FRAG_SIZE),
   SlotSize = application:get_env(loki, slot_size, ?SLOT_SIZE),
@@ -214,7 +214,7 @@ do_apply(#{entity := Entity, function := Function} = Request) ->
           loki_tivan:get(Table, Entity)
          )
     end,
-    InitialValue,
+    InitValue,
     lists:seq(FromFrag, ToFrag)
    ).
 

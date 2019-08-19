@@ -15,10 +15,13 @@
   {'ok', EventMapList :: list(), NewState :: map()} |
   {'noreply', NewState :: map()} |
   {'stop', Reason :: term(), NewState :: map()}.
+-callback handle_scan(Event :: map(), Data :: map(), State :: map()) ->
+  {DataU :: map(), State :: map()}.
 
 %% API
 -export([start_link/4
-        ,notify/1]).
+        ,notify/2
+        ,scan/2]).
 
 %% gen_server callbacks
 -export([init/1
@@ -27,6 +30,9 @@
         ,handle_info/2
         ,terminate/2
         ,code_change/3]).
+
+%% loki_core callback
+-export([handle_scan/2]).
 
 %%%===================================================================
 %%% API
@@ -42,10 +48,19 @@
 %% @end
 %%--------------------------------------------------------------------
 start_link(Registration, Callback, Arguments, Options) ->
-  gen_server:start_link(Registration, ?MODULE, [Callback|Arguments], Options).
+  Server = case Registration of
+             {local, Name} -> Name;
+             {global, GlobalName} -> GlobalName;
+             {via, _Module, ViaName} -> ViaName
+           end,
+  gen_server:start_link(Registration, ?MODULE, [Callback, Server|Arguments], Options).
 
-notify(EventMap) ->
-  gen_server:cast(?MODULE, {notify, EventMap}).
+notify(Server, EventMap) ->
+  gen_server:cast(Server, {notify, EventMap}).
+
+scan(Server, Request) ->
+  Callback = persistent_term:get({Server, callback}),
+  do_scan(Request, Callback).
 
 %%%===================================================================
 %%% gen_server callbacks
@@ -62,9 +77,10 @@ notify(EventMap) ->
 %%                     {stop, Reason}
 %% @end
 %%--------------------------------------------------------------------
-init([Callback|Arguments]) ->
+init([Callback, Server|Arguments]) ->
   case Callback:init(Arguments) of
     {ok, State} ->
+      persistent_term:put({Server, callback}, Callback),
       {ok, #{callback => Callback, state => State}};
     Error ->
       Error
@@ -161,3 +177,27 @@ do_notify(EventMapList) ->
     end,
     EventMapList
    ).
+
+do_scan(Request, Callback) ->
+  Range = maps:get(range, Request, 1),
+  TzDiff = maps:get(tz_diff, Request, 0),
+  loki_core:apply(Request#{function => fun ?MODULE:handle_scan/2
+                          ,init => #{callback => Callback
+                                    ,range => Range
+                                    ,tz_diff => TzDiff
+                                    ,data => #{}
+                                    ,state => #{}}}).
+
+handle_scan({Second, Event}, #{callback := Callback
+                              ,range := Range
+                              ,tz_diff := TzDiff
+                              ,data := Data
+                              ,state := State}) ->
+  RangeNo = (Second + TzDiff) div Range,
+  DataOfRange = maps:get(RangeNo, Data, #{}),
+  {DataOfRangeU, StateU} = Callback:handle_scan(Event, DataOfRange, State),
+  #{callback => Callback
+   ,range => Range
+   ,tz_diff => TzDiff
+   ,data => Data#{RangeNo => DataOfRangeU}
+   ,state => StateU}.
