@@ -179,25 +179,25 @@ do_notify(EventMapList) ->
    ).
 
 do_scan(Request, Callback) ->
-  Range = maps:get(range, Request, 1),
+  Scale = maps:get(scale, Request, 1),
   TzDiff = maps:get(tz_diff, Request, 0),
   loki_core:apply(Request#{function => fun ?MODULE:handle_scan/2
                           ,init => #{callback => Callback
-                                    ,range => Range
+                                    ,scale => Scale
                                     ,tz_diff => TzDiff
                                     ,data => #{}
                                     ,state => #{}}}).
 
 handle_scan({Second, Event}, #{callback := Callback
-                              ,range := Range
+                              ,scale := Scale
                               ,tz_diff := TzDiff
                               ,data := Data
                               ,state := State}) ->
-  RangeNo = (Second + TzDiff) div Range,
-  DataOfRange = maps:get(RangeNo, Data, #{}),
+  ScaleNo = (Second + TzDiff) div Scale,
+  DataOfRange = maps:get(ScaleNo, Data, #{}),
   {DataOfRangeU, StateU} = Callback:handle_scan(Event, DataOfRange, State),
   #{callback => Callback
-   ,range => Range
+   ,scale => Scale
    ,tz_diff => TzDiff
-   ,data => Data#{RangeNo => DataOfRangeU}
+   ,data => Data#{ScaleNo => DataOfRangeU}
    ,state => StateU}.
