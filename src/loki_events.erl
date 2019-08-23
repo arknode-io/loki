@@ -22,7 +22,7 @@
 -export([start_link/4
         ,event/2
         ,scan/2
-        ,scan_with_state/2]).
+        ,scan_state/2]).
 
 %% gen_server callbacks
 -export([init/1
@@ -64,9 +64,10 @@ scan(Server, Request) ->
   #{data := Data} = do_scan(Request, Callback),
   {ok, Data}.
 
-scan_with_state(Server, Request) ->
+scan_state(Server, Request) ->
   Callback = persistent_term:get({Server, callback}),
-  do_scan(Request, Callback).
+  #{data := Data, state := State} = do_scan(Request, Callback),
+  {ok, Data, State}.
 
 %%%===================================================================
 %%% gen_server callbacks
