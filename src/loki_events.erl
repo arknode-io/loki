@@ -56,7 +56,7 @@ start_link(Registration, Callback, Arguments, Options) ->
   gen_server:start_link(Registration, ?MODULE, [Callback, Server|Arguments], Options).
 
 event(Server, EventMap) ->
-  gen_server:cast(Server, {notify, EventMap}).
+  gen_server:cast(Server, {event, EventMap}).
 
 scan(Server, Request) ->
   Callback = persistent_term:get({Server, callback}),
@@ -114,10 +114,10 @@ handle_call(_Request, _From, State) ->
 %%                                  {stop, Reason, State}
 %% @end
 %%--------------------------------------------------------------------
-handle_cast({notify, EventMap}, #{callback := Callback, state := State}) ->
+handle_cast({event, EventMap}, #{callback := Callback, state := State}) ->
   case Callback:handle_event(EventMap, State) of
     {ok, EventMapList, NewState} ->
-      do_notify(EventMapList),
+      do_event(EventMapList),
       {noreply, #{callback => Callback, state => NewState}};
     {noreply, NewState} ->
       {noreply, #{callback => Callback, state => NewState}};
@@ -169,7 +169,7 @@ code_change(_OldVsn, State, _Extra) ->
 %%% Internal functions
 %%%===================================================================
 
-do_notify(EventMapList) ->
+do_event(EventMapList) ->
   lists:foreach(
     fun(EventMap) ->
         lager:info("Sending the event ~p to loki_core", [EventMap]),
@@ -181,12 +181,13 @@ do_notify(EventMapList) ->
 do_scan(Request, Callback) ->
   Scale = maps:get(scale, Request, 1),
   TzDiff = maps:get(tz_diff, Request, 0),
-  loki_core:apply(Request#{function => fun ?MODULE:handle_scan/2
-                          ,init => #{callback => Callback
-                                    ,scale => Scale
-                                    ,tz_diff => TzDiff
-                                    ,data => #{}
-                                    ,state => #{}}}).
+  #{data := Data} = loki_core:apply(Request#{function => fun ?MODULE:handle_scan/2
+                                             ,init => #{callback => Callback
+                                                        ,scale => Scale
+                                                        ,tz_diff => TzDiff
+                                                        ,data => #{}
+                                                        ,state => #{}}}),
+  {ok, Data}.
 
 handle_scan({Second, Event}, #{callback := Callback
                               ,scale := Scale
