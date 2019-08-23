@@ -21,7 +21,8 @@
 %% API
 -export([start_link/4
         ,event/2
-        ,scan/2]).
+        ,scan/2
+        ,scan_with_state/2]).
 
 %% gen_server callbacks
 -export([init/1
@@ -59,6 +60,11 @@ event(Server, EventMap) ->
   gen_server:cast(Server, {event, EventMap}).
 
 scan(Server, Request) ->
+  Callback = persistent_term:get({Server, callback}),
+  #{data := Data} = do_scan(Request, Callback),
+  {ok, Data}.
+
+scan_with_state(Server, Request) ->
   Callback = persistent_term:get({Server, callback}),
   do_scan(Request, Callback).
 
@@ -181,13 +187,12 @@ do_event(EventMapList) ->
 do_scan(Request, Callback) ->
   Scale = maps:get(scale, Request, 1),
   TzDiff = maps:get(tz_diff, Request, 0),
-  #{data := Data} = loki_core:apply(Request#{function => fun ?MODULE:handle_scan/2
-                                             ,init => #{callback => Callback
-                                                        ,scale => Scale
-                                                        ,tz_diff => TzDiff
-                                                        ,data => #{}
-                                                        ,state => #{}}}),
-  {ok, Data}.
+  loki_core:apply(Request#{function => fun ?MODULE:handle_scan/2
+                          ,init => #{callback => Callback
+                                    ,scale => Scale
+                                    ,tz_diff => TzDiff
+                                    ,data => #{}
+                                    ,state => #{}}}).
 
 handle_scan({Second, Event}, #{callback := Callback
                               ,scale := Scale
