@@ -202,6 +202,7 @@ handle_scan({Second, Event}, #{callback := Callback
                               ,state := State}) ->
   ScaleNo = (Second + TzDiff) div Scale,
   DataOfRange = maps:get(ScaleNo, Data, #{}),
+  lager:info("DataOfRange here is ~p", [DataOfRange]),
   {DataOfRangeU, StateU} = Callback:handle_scan(Event, DataOfRange, State),
   #{callback => Callback
    ,scale => Scale
