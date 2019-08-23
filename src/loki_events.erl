@@ -20,7 +20,7 @@
 
 %% API
 -export([start_link/4
-        ,notify/2
+        ,event/2
         ,scan/2]).
 
 %% gen_server callbacks
@@ -55,7 +55,7 @@ start_link(Registration, Callback, Arguments, Options) ->
            end,
   gen_server:start_link(Registration, ?MODULE, [Callback, Server|Arguments], Options).
 
-notify(Server, EventMap) ->
+event(Server, EventMap) ->
   gen_server:cast(Server, {notify, EventMap}).
 
 scan(Server, Request) ->
@@ -115,7 +115,7 @@ handle_call(_Request, _From, State) ->
 %% @end
 %%--------------------------------------------------------------------
 handle_cast({notify, EventMap}, #{callback := Callback, state := State}) ->
-  case Callback:handle_notify(EventMap, State) of
+  case Callback:handle_event(EventMap, State) of
     {ok, EventMapList, NewState} ->
       do_notify(EventMapList),
       {noreply, #{callback => Callback, state => NewState}};
