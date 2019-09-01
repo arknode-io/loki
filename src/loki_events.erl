@@ -20,8 +20,9 @@
 
 %% API
 -export([start_link/4
-        ,notify/2
-        ,scan/2]).
+        ,event/2
+        ,scan/2
+        ,scan_state/2]).
 
 %% gen_server callbacks
 -export([init/1
@@ -55,12 +56,18 @@ start_link(Registration, Callback, Arguments, Options) ->
            end,
   gen_server:start_link(Registration, ?MODULE, [Callback, Server|Arguments], Options).
 
-notify(Server, EventMap) ->
-  gen_server:cast(Server, {notify, EventMap}).
+event(Server, EventMap) ->
+  gen_server:cast(Server, {event, EventMap}).
 
 scan(Server, Request) ->
   Callback = persistent_term:get({Server, callback}),
-  do_scan(Request, Callback).
+  #{data := Data} = do_scan(Request, Callback),
+  {ok, Data}.
+
+scan_state(Server, Request) ->
+  Callback = persistent_term:get({Server, callback}),
+  #{data := Data, state := State} = do_scan(Request, Callback),
+  {ok, Data, State}.
 
 %%%===================================================================
 %%% gen_server callbacks
@@ -114,10 +121,10 @@ handle_call(_Request, _From, State) ->
 %%                                  {stop, Reason, State}
 %% @end
 %%--------------------------------------------------------------------
-handle_cast({notify, EventMap}, #{callback := Callback, state := State}) ->
-  case Callback:handle_notify(EventMap, State) of
+handle_cast({event, EventMap}, #{callback := Callback, state := State}) ->
+  case Callback:handle_event(EventMap, State) of
     {ok, EventMapList, NewState} ->
-      do_notify(EventMapList),
+      do_event(EventMapList),
       {noreply, #{callback => Callback, state => NewState}};
     {noreply, NewState} ->
       {noreply, #{callback => Callback, state => NewState}};
@@ -169,7 +176,7 @@ code_change(_OldVsn, State, _Extra) ->
 %%% Internal functions
 %%%===================================================================
 
-do_notify(EventMapList) ->
+do_event(EventMapList) ->
   lists:foreach(
     fun(EventMap) ->
         lager:info("Sending the event ~p to loki_core", [EventMap]),
@@ -195,6 +202,7 @@ handle_scan({Second, Event}, #{callback := Callback
                               ,state := State}) ->
   ScaleNo = (Second + TzDiff) div Scale,
   DataOfRange = maps:get(ScaleNo, Data, #{}),
+  lager:info("DataOfRange here is ~p", [DataOfRange]),
   {DataOfRangeU, StateU} = Callback:handle_scan(Event, DataOfRange, State),
   #{callback => Callback
    ,scale => Scale
