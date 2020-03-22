@@ -11,7 +11,7 @@
 -behaviour(gen_server).
 
 -callback init(Args :: list()) -> {'ok', State :: map()}.
--callback handle_event(EventMap :: map(), State :: map()) ->
+-callback handle_notify(EventMap :: map(), State :: map()) ->
   {'ok', EventMapList :: list(), NewState :: map()} |
   {'noreply', NewState :: map()} |
   {'stop', Reason :: term(), NewState :: map()}.
@@ -33,7 +33,7 @@
         ,code_change/3]).
 
 %% loki_core callback
--export([handle_scan/2]).
+-export([handle_scan/3]).
 
 %%%===================================================================
 %%% API
@@ -188,14 +188,14 @@ do_event(EventMapList) ->
 do_scan(Request, Callback) ->
   Scale = maps:get(scale, Request, 1),
   TzDiff = maps:get(tz_diff, Request, 0),
-  loki_core:apply(Request#{function => fun ?MODULE:handle_scan/2
+  loki_core:apply(Request#{function => fun ?MODULE:handle_scan/3
                           ,init => #{callback => Callback
                                     ,scale => Scale
                                     ,tz_diff => TzDiff
                                     ,data => #{}
                                     ,state => #{}}}).
 
-handle_scan({Second, Event}, #{callback := Callback
+handle_scan(Second, Event, #{callback := Callback
                               ,scale := Scale
                               ,tz_diff := TzDiff
                               ,data := Data
@@ -209,3 +209,4 @@ handle_scan({Second, Event}, #{callback := Callback
    ,tz_diff => TzDiff
    ,data => Data#{ScaleNo => DataOfRangeU}
    ,state => StateU}.
+

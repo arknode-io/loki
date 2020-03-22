@@ -43,11 +43,8 @@ start_link() ->
   gen_server:start_link({local, ?MODULE}, ?MODULE, [], []).
 
 put(#{entity := _Entity, event := _Event} = EventMap) ->
-  EventMapU = case maps:find(time, EventMap) of
-                error -> EventMap#{time => erlang:system_time(second)};
-                _ -> EventMap
-              end,
-  gen_server:cast(?MODULE, {put, EventMapU});
+  Time = maps:get(time, EventMap, erlang:system_time(second)),
+  gen_server:cast(?MODULE, {put, EventMap#{time => Time}});
 put(EventMap) ->
   lager:info("EventMap ~p missing essential info", [EventMap]),
   error.
@@ -56,7 +53,7 @@ get(#{entity := _Entity} = Request) ->
   GetFunction = fun({S, E}, A) -> A#{S => E} end,
   apply(Request#{function => GetFunction, init => #{}}).
 
-apply(#{entity := _Entity, function := Function} = Request) when is_function(Function, 2) ->
+apply(#{entity := _Entity, function := Function} = Request) when is_function(Function, 3) ->
   do_apply(Request).
 
 %%%===================================================================
@@ -166,10 +163,10 @@ do_put(#{entity := Entity, event := Event, time := TimeInSeconds} = EventMap
   FragNo = TimeInSeconds div FragSize,
   SlotNo = TimeInSeconds div SlotSize,
   EventId = loki_tivan:get_id_for_event(Event),
-  EventData = case maps:get(data, EventMap, <<>>) of
-                <<>> ->
+  EventData = case maps:find(data, EventMap) of
+                error ->
                   <<Mark:16, EventId:16, 0:16>>;
-                Data ->
+                {ok, Data} ->
                   {DataU, Size} = case size(Data) of
                                     S when S > 1023 -> {binary_part(Data, 0, 1023), 1023};
                                     S -> {Data, S}
@@ -230,7 +227,7 @@ parse_event_data(<<Mark:16, EventId:16, 0:16, Rest/binary>>
       % lager:info("Event for ~p not requested so ignoring", [EventId]),
       parse_event_data(Rest, SlotSeconds, EventsReq, Function, EventsAcc);
     {ok, Event} ->
-      EventsAccU = apply(Function, [{SlotSeconds + Mark, #{event => Event}}, EventsAcc]),
+      EventsAccU = apply(Function, [SlotSeconds + Mark, Event, EventsAcc]),
       parse_event_data(Rest, SlotSeconds, EventsReq, Function, EventsAccU)
   end;
 parse_event_data(<<Mark:16, EventId:16, Size:16, EData:Size/binary, Rest/binary>>
@@ -245,8 +242,7 @@ parse_event_data(<<Mark:16, EventId:16, Size:16, EData:Size/binary, Rest/binary>
       % lager:info("Event for ~p not requested so ignoring", [EventId]),
       parse_event_data(Rest, SlotSeconds, EventsReq, Function, EventsAcc);
     {ok, Event} ->
-      EventsAccU = apply(Function, [{SlotSeconds + Mark, #{event => Event
-                                                          ,data => EData}}, EventsAcc]),
+      EventsAccU = apply(Function, [SlotSeconds + Mark, {Event, EData}, EventsAcc]),
       parse_event_data(Rest, SlotSeconds, EventsReq, Function, EventsAccU)
   end;
 parse_event_data(<<>>, _SlotSeconds, _EventsReq, _Function, EventsAcc) -> EventsAcc.
